@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.godotengine.Godot</id> 
+  <name>$longname</name>
+  <summary>$summary</summary>
+  <description>
+    $description
+  </description>
+  <icon type="local">icon.svg</icon>
+  <launchable type="desktop-id">
+    com.godot.Godot.desktop
+  </launchable>
+  <version>$version</version>
+  <grade>$grade</grade>
+
+</component>

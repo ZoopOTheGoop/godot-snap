@@ -1,0 +1,291 @@
+name: godot
+confinement: strict
+base: core22
+adopt-info: metainfo
+architectures:
+  - build-on: amd64
+source-code: https://github.com/ZoopOTheGoop/godot-snap
+icon: snapcraft/icon_outlined.svg
+license: MIT
+title: Godot
+type: app
+
+package-repositories:
+  - type: apt
+    url: http://archive.ubuntu.com/ubuntu/
+    suites: [jammy]
+    components: [main, universe]
+    architectures: [amd64]
+    key-id: F6ECB3762474EDA9D21B7022871920D1991BC93C
+    key-server: keyserver.ubuntu.com
+
+parts:
+  # This doesn't look like it does anything, but is required for `ld-precache`
+  # to work.
+  extensible-hooks:
+    plugin: dump
+    source: https://github.com/diddlesnaps/snapcraft-utils-library.git
+    source-subdir: snapcraft-assets/extensible-hooks
+
+  # Allows Godot and our tools to load faster by pre-caching its dependencies.
+  # This should go after everything that actually has a dependency at snap runtime
+  # (so things like executables or libraries, not our metainfo stuff).
+  ld-precache:
+    after:
+      - extensible-hooks
+      - godot
+      - godot-runtime
+      - vulkan
+      - tools
+    plugin: dump
+    source: https://github.com/diddlesnaps/snapcraft-utils-library.git
+    source-subdir: snapcraft-assets/ld-precache
+
+  # This part has two purposes, it both builds and installs Godot, and takes its
+  # `icon.svg` and `version.py` and places them in `meta/gui` and the staging area
+  # root. While conceptually these are 2-3 different "parts", this simplifies changing
+  # this file between Godot 3 and Godot 4 (plus various tags/channels)
+  # since you only need to change the branch for one part, rather than risking
+  # forgetting one and getting version info that doesn't match the actual build.
+  godot:
+    # There's a scons plugin, but it's stuck on core18 and frankly
+    # the plugin (and building+staging Godot) is so simple there's
+    # no real value in writing a port to core22 for this.
+    plugin: nil
+    source: https://github.com/godotengine/godot.git
+    source-branch: master # Change this for stable releases/Godot 3 - or use source-tag
+    build-packages:
+      - build-essential
+      - libasound2-dev
+      - libgl1-mesa-dev
+      - libglu1-mesa-dev
+      - libpulse-dev
+      - libudev-dev
+      - libx11-dev
+      - libxcursor-dev
+      - libxi-dev
+      - libxinerama-dev
+      - libxrandr-dev
+      - pkg-config
+      - scons
+    # Handles scons build+installation accounting for the differences in Godot 3
+    # and Godot 4 automatically.
+    override-build: |
+      craftctl default
+      if [ `python3 -c "import version; print(f'{version.major}', end='')"` -eq 3 ]
+      then
+        scons platform=x11 target=release_debug use_lto=yes
+      else
+        scons platform=linuxbsd production=yes
+      fi
+
+      cp icon.svg $CRAFT_PART_INSTALL/icon.svg
+      cp -r bin $CRAFT_PART_INSTALL/bin
+      cp version.py $CRAFT_PART_INSTALL/version.py
+    organize:
+      bin/godot.*.editor.x86_64: bin/godot
+      icon.svg: meta/gui/godot.svg
+    stage:
+      - version.py
+      - bin/godot
+      - meta/gui/godot.svg
+    # We're only staging `version.py` for our metainfo
+    prime:
+      - -version.py
+
+  godot-runtime:
+    plugin: nil
+    stage-packages:
+      - libgl1-mesa-glx
+      - libpulse0
+      - libudev1
+      - libx11-6
+      - libxcursor1
+      - libxi6
+      - libxinerama1
+      - libxrandr2
+      - libgl1-mesa-dri
+
+  # This stage just pulls in our `README.md`` for purposes
+  # of the `metainfo` stage. We unprime it because there's
+  # no point in having it after the `metainfo` `build` part runs.
+  description:
+    plugin: dump
+    source: .
+    source-type: local
+    stage:
+      - README.md
+    prime:
+      - -README.md
+
+  # This is here so we don't have to change more than a line or so for
+  # different versions and channels of Godot.
+  #
+  # The `parse-info` file only needs to exist in one of the pull, build, or install stages
+  # so we don't need to do more than generate our `metainfo.xml`` file and then
+  # forget about it. We choose the build stage because that's when our `after` dependencies
+  # have already staged their stuff so we can grab everything we need from` $CRAFT_STAGE`.
+  #
+  # The two reasons this is so complicated are:
+  #   1. We want to generate a desktop file with a different display name for Godot 3 and 4, and show
+  #      whether it's a beta or not; and
+  #   2. There's no `craftctl set description=foo` like there is for `version` and `grade`
+  #      which is the only reason a `metainfo.xml` file is even needed, that one fact makes
+  #      this about 50x more complicated. There's no other way to programatically
+  #      set `description` (that's documented at least).
+  #
+  # The first point could be done with a much simpler scriptlet if the pain point from 2 was eliminated.
+  metainfo:
+    plugin: nil
+    source: meta
+    source-type: local
+    after: [godot, description]
+    parse-info: [org.godotengine.Godot.metainfo.xml]
+    # For finding `version.py`
+    build-environment:
+      - PYTHONPATH: $CRAFT_STAGE
+    override-build: |
+      python3 gen_template.py --readme $CRAFT_STAGE/README.md
+
+      cp org.godotengine.Godot.desktop $CRAFT_PART_INSTALL/
+
+      craftctl set version=`python3 -c "import version; print(f'{version.major}.{version.minor}.{version.patch}', end='')"`
+      craftctl set grade=`python3 -c "import version; print(f'{version.status}', end='')"`
+    organize:
+      org.godotengine.Godot.desktop: meta/gui/org.godotengine.Godot.desktop
+
+  alsa-mixin:
+    plugin: dump
+    source: https://github.com/diddlesnaps/snapcraft-alsa.git
+    source-subdir: snapcraft-assets
+    build-packages:
+      - libasound2-dev
+    stage-packages:
+      - libasound2
+      - libasound2-plugins
+    stage:
+      # restrict to only audio-related files - you need to ensure
+      # that gtk3 is staged for yad to work correctly, to prompt
+      # users to connect the alsa plug or proceed with pulseaudio.
+      #
+      # This helps prevent symbol conflicts in situations where
+      # you're using a non-default library, such as those that the
+      # gnome-3-34 extension for core18 provides.
+      - etc/asound.conf
+      - snap/command-chain/alsa-launch
+      - usr/bin/yad*
+      - usr/lib/*/alsa-lib
+      - usr/lib/*/libasound*
+      - usr/lib/*/libasyncns*
+      - usr/lib/*/libdnsfile*
+      - usr/lib/*/libFLAC*
+      - usr/lib/*/libjack*
+      - usr/lib/*/libpulse*
+      - usr/lib/*/libsamplerate*
+      - usr/lib/*/libsndfile*
+      - usr/lib/*/libspeex*
+      - usr/lib/*/libvorbis*
+      - usr/lib/*/pulseaudio
+      - usr/share/alsa
+
+  vulkan:
+    plugin: nil
+    stage-packages:
+      - mesa-vulkan-drivers
+      - libwayland-client0
+    prime:
+      - usr/bin/mesa-overlay-control.py
+      - usr/lib/*/libVkLayer*
+      - usr/lib/*/libvulkan*
+      - usr/lib/*/libxcb-randr*
+      - usr/lib/*/libLLVM*
+      - usr/share/drirc.d
+      - usr/share/vulkan
+      - usr/lib/x86_64-linux-gnu/libwayland-client*
+
+  # For debugging
+  tools:
+    plugin: nil
+    stage-packages:
+      - vulkan-tools
+      - mesa-utils
+      - pciutils
+    prime:
+      - usr/lib/*/libpci*
+      - usr/bin/glxgears*
+      - usr/bin/glxinfo*
+      - usr/bin/vkcube
+      - usr/bin/vkcubepp
+      - usr/bin/lspci
+
+layout:
+  ### Audio
+  /usr/lib/x86_64-linux-gnu/alsa-lib:
+    bind: $SNAP/usr/lib/x86_64-linux-gnu/alsa-lib
+  /usr/share/alsa:
+    bind: $SNAP/usr/share/alsa
+  /usr/share/vulkan:
+    bind: $SNAP/usr/share/vulkan
+  ### Vulkan
+  /usr/lib/x86_64-linux-gnu/libvulkan_intel.so:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libvulkan_intel.so
+  /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libvulkan_radeon.so
+  /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0
+  /usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0:
+    symlink: $SNAP/usr/lib/x86_64-linux-gnu/libxcb-dri3.so.0.0.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0:
+    bind-file: $SNAP/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so:
+    symlink: $SNAP/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+  /usr/lib/x86_64-linux-gnu/libxcb.so.1:
+    symlink: $SNAP/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+  /etc/ld.so.cache:
+    bind-file: $SNAP_DATA/etc/ld.so.cache
+
+environment:
+  HOME: $SNAP_USER_COMMON
+  # Export Vulkan ICD filename paths
+  VK_ICD_FILENAMES: /var/lib/snapd/lib/vulkan/icd.d/nvidia_icd.json:$SNAP/usr/share/vulkan/icd.d/radeon_icd.x86_64.json:$SNAP/usr/share/vulkan/icd.d/intel_icd.x86_64.json
+
+apps:
+  godot:
+    command-chain: [snap/command-chain/alsa-launch]
+    command: bin/godot
+    common-id: org.godotengine.Godot
+    plugs:
+      - alsa
+      - audio-playback
+      - audio-record
+      - browser-support
+      - daemon-notify
+      - desktop
+      - desktop-legacy
+      - gsettings
+      - hardware-observe
+      - home
+      - io-ports-control
+      - joystick
+      - kvm
+      - libvirt
+      - mount-observe
+      - network
+      - network-bind
+      - network-manager
+      - opengl
+      - pulseaudio
+      - removable-media
+      - screen-inhibit-control
+      - wayland
+      - x11
+
+  # For debugging
+  vkcube:
+    command: usr/bin/vkcube
+  glxinfo:
+    command: usr/bin/glxinfo
+  glxgears:
+    command: usr/bin/glxgears

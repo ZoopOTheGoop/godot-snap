@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=$longname
+Comment=$summary
+Categories=Game Engine;
+Keywords=development;gamedev;game;editor
+Exec=godot %U
+Icon=godot
+Terminal=false
+Type=Application

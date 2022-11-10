@@ -5,7 +5,7 @@ Godot is a free, open source game engine, that can export to web, mobile,
 Linux, MacOS, Windows, Android, iOS, and, soon, several game consoles.
 For more information on Godot itself, see [the main engine repository].
 
-[the main engine repository]: https://github.com/godotengine/godot)
+[the main engine repository]: https://github.com/godotengine/godot
 
 This snap provides a way to get Godot via `snap insall`, with the benefits
 of a snap such as application sandboxing and dependency pinning. 
@@ -53,5 +53,5 @@ with tags and branches for `stable`). Realistically, the only meaningful change 
 is the git tag to pull the `godot` part from.
 
 To build as a developer, simply run `snapcraft`, and then install the 
-resulting snap with `snap install --dangerous godot-<version>.snap` 
-(e.g. instance `godot-4.0.0.snap`).
+resulting snap with `snap install --dangerous godot-<version>._<arch>.snap` 
+(e.g. instance `godot-4.0.0_amd64.snap`).

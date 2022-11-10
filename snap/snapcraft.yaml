@@ -83,7 +83,7 @@ parts:
       cp -r bin $CRAFT_PART_INSTALL/bin
       cp version.py $CRAFT_PART_INSTALL/version.py
     organize:
-      bin/godot.*.editor.x86_64: bin/godot
+      bin/godot.*: bin/godot
       icon.svg: meta/gui/godot.svg
     stage:
       - version.py
@@ -164,13 +164,7 @@ parts:
       - libasound2
       - libasound2-plugins
     stage:
-      # restrict to only audio-related files - you need to ensure
-      # that gtk3 is staged for yad to work correctly, to prompt
-      # users to connect the alsa plug or proceed with pulseaudio.
-      #
-      # This helps prevent symbol conflicts in situations where
-      # you're using a non-default library, such as those that the
-      # gnome-3-34 extension for core18 provides.
+      # restrict to only audio-related files
       - etc/asound.conf
       - snap/command-chain/alsa-launch
       - usr/bin/yad*

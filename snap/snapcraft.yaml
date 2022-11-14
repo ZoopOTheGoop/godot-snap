@@ -150,7 +150,7 @@ parts:
       cp org.godotengine.Godot.desktop $CRAFT_PART_INSTALL/
 
       craftctl set version=`python3 -c "import version; print(f'{version.major}.{version.minor}.{version.patch}', end='')"`
-      craftctl set grade=`python3 -c "import version; print(f'{version.status}', end='')"`
+      craftctl set grade=`python3 -c "import version; status = 'stable' if version.status == 'stable' else 'devel';  print(f'{status}', end='')"`
     organize:
       org.godotengine.Godot.desktop: meta/gui/org.godotengine.Godot.desktop
 

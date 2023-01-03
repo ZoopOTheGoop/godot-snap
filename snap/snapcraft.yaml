@@ -66,8 +66,16 @@ parts:
       - libxi-dev
       - libxinerama-dev
       - libxrandr-dev
+      - yasm
+      - xvfb
+      - libspeechd-dev
+      - speech-dispatcher
+      - fontconfig
+      - libfontconfig-dev
       - pkg-config
       - scons
+      - mono-complete
+      - dotnet-sdk-6.0
     # Handles scons build+installation accounting for the differences in Godot 3
     # and Godot 4 automatically.
     override-build: |
@@ -76,18 +84,20 @@ parts:
       then
         scons platform=x11 target=release_debug use_lto=yes
       else
-        scons platform=linuxbsd production=yes
+        scons platform=linuxbsd production=no module_mono_enabled=yes
+        bin/godot.linuxbsd.editor.x86_64.mono --headless --generate-mono-glue ./modules/mono/glue
+        ./modules/mono/build_scripts/build_assemblies.py --godot-output-dir=./bin --godot-platform=linuxbsd
       fi
 
       cp icon.svg $CRAFT_PART_INSTALL/icon.svg
       cp -r bin $CRAFT_PART_INSTALL/bin
       cp version.py $CRAFT_PART_INSTALL/version.py
     organize:
-      bin/godot.*: bin/godot
+      bin/godot.*.mono: bin/godot
       icon.svg: meta/gui/godot.svg
     stage:
       - version.py
-      - bin/godot
+      - bin
       - meta/gui/godot.svg
     # We're only staging `version.py` for our metainfo
     prime:
@@ -105,6 +115,9 @@ parts:
       - libxinerama1
       - libxrandr2
       - libgl1-mesa-dri
+      - mono-complete
+      - dotnet-sdk-6.0
+      - fontconfig
 
   # This stage just pulls in our `README.md`` for purposes
   # of the `metainfo` stage. We unprime it because there's
@@ -250,6 +263,8 @@ apps:
     command-chain: [snap/command-chain/alsa-launch]
     command: bin/godot
     common-id: org.godotengine.Godot
+    environment:
+      DOTNET_ROOT: $SNAP/usr/lib/dotnet
     plugs:
       - alsa
       - audio-playback
